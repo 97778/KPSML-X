@@ -1,4 +1,4 @@
-FROM nanthakps/kpsmlx:heroku_v2
+FROM pro97775/kpsmlx:heroku_v2
 
 WORKDIR /usr/src/app
 
