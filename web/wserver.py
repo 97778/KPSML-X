@@ -210,6 +210,48 @@ input[type="submit"]:hover, input[type="submit"]:focus{
   top: 0;
   z-index: 10000;
 }
+
+#range_box {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 1vh;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+#range_box input[type="text"] {
+  border-radius: 20px;
+  outline: none;
+  width: 16rem;
+  height: 3.5vh;
+  padding: 0 0.8rem;
+  border: 2px solid rgba(255, 255, 255, 0.11);
+  background-color: #3e475531;
+  box-shadow: inset 0px 0px 10px black;
+  color: white;
+}
+
+#range_box input[type="text"]:focus {
+  border-color: rgba(255, 255, 255, 0.404);
+}
+
+#range_box button {
+  border-radius: 20px;
+  height: 3.5vh;
+  padding: 0 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.11);
+  background-color: #0D1117;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 200ms ease;
+}
+
+#range_box button:hover {
+  background-color: rgba(255, 255, 255, 0.068);
+}
 </style>
 <script>
 function s_validate() {
@@ -240,6 +282,11 @@ function s_validate() {
     <div id="sticks">
         <h4>Selected files: <b id="checked_files">0</b> of <b id="total_files">0</b></h4>
         <h4>Selected files size: <b id="checked_size">0</b> of <b id="total_size">0</b></h4>
+        <div id="range_box">
+            <input type="text" id="range_input" placeholder="e.g. 1-10, 15, 20-22" />
+            <button type="button" id="range_apply_btn">Select Range</button>
+        </div>
+        <div id="range_error" style="display:none;color:#ff6b6b;font-size:small;margin-top:0.5vh;"></div>
     </div>
       <section>
       <form action="{form_url}" onsubmit="return s_validate()" method="POST">
@@ -408,6 +455,79 @@ $('input[type="checkbox"]').change(function(e) {
     $(function () {
         $(window).scroll(sticking);
         sticking();
+    });
+
+    function showRangeError(msg) {
+        var box = $('#range_error');
+        box.text(msg);
+        box.show();
+    }
+
+    function clearRangeError() {
+        $('#range_error').hide().text('');
+    }
+
+    function selectByRange() {
+        clearRangeError();
+        var rangeStr = $('#range_input').val().trim();
+        if (!rangeStr) {
+            showRangeError('Please enter a range or file number (e.g. "1-10, 15").');
+            return;
+        }
+
+        var indicesToSelect = new Set();
+        try {
+            var parts = rangeStr.split(',');
+            parts.forEach(function (part) {
+                part = part.trim();
+                if (part === '') return;
+                if (part.indexOf('-') !== -1) {
+                    var bounds = part.split('-').map(function (n) { return parseInt(n.trim(), 10); });
+                    var start = bounds[0], end = bounds[1];
+                    if (isNaN(start) || isNaN(end) || start > end || start < 1) {
+                        throw new Error('Invalid range: "' + part + '"');
+                    }
+                    for (var i = start; i <= end; i++) {
+                        indicesToSelect.add(i);
+                    }
+                } else {
+                    var num = parseInt(part, 10);
+                    if (isNaN(num) || num < 1) {
+                        throw new Error('Invalid number: "' + part + '"');
+                    }
+                    indicesToSelect.add(num);
+                }
+            });
+
+            // Position-based selection: the Nth file checkbox in DOM/tree order,
+            // not the file's internal id (qBittorrent ids are 0-indexed and can
+            // have gaps; aria2 indices vary too), so "1" always means "the first
+            // file listed" regardless of the underlying id scheme.
+            var fileCheckboxes = $("input[type='checkbox'][name^='filenode_']");
+            fileCheckboxes.each(function (index) {
+                if (indicesToSelect.has(index + 1)) {
+                    var box = $(this);
+                    if (!box.prop('checked')) {
+                        box.prop('checked', true);
+                        box.trigger('change');
+                    }
+                }
+            });
+
+            $('#range_input').val('');
+        } catch (error) {
+            showRangeError('Invalid input: ' + error.message + '. Use a format like "1-10, 15, 20-22".');
+        }
+    }
+
+    $(function () {
+        $('#range_apply_btn').click(selectByRange);
+        $('#range_input').keypress(function (e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                selectByRange();
+            }
+        });
     });
 </script>
 </body>
